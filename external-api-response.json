@@ -1,0 +1,51 @@
+{
+	"events": [
+		{
+			"id": 1022587324,
+			"name": "CHA Hornets @ LA Lakers",
+			"start": "2025-02-20T03:00:00.000Z",
+			"state": "LIVE",
+			"markets": [
+				{
+					"marketName": "Money line",
+					"selections": [
+						{
+							"name": "CHA Hornets",
+							"odds": 2.9
+						},
+						{
+							"name": "LA Lakers",
+							"odds": 1.37
+						}
+					]
+				},
+				{
+					"marketName": "Points Spread",
+					"selections": [
+						{
+							"name": "CHA Hornets +7.5",
+							"odds": 1.91
+						},
+						{
+							"name": "LA Lakers -7.5",
+							"odds": 1.91
+						}
+					]
+				},
+				{
+					"marketName": "Total Points",
+					"selections": [
+						{
+							"name": "Over 223.5",
+							"odds": 1.91
+						},
+						{
+							"name": "Under 223.5",
+							"odds": 1.91
+						}
+					]
+				}
+			]
+		}
+	]
+}
