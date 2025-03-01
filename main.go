@@ -9,19 +9,19 @@ import (
 )
 
 func main() {
-	// jsonData := []byte(`{"events": [...]}`)
-
 	jsonData, err := os.ReadFile("external-api-response.json")
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Error reading file: %v", err)
 	}
 
-	// fmt.Printf("%s", jsonData)
-
-	markets, err := markets.ProcessMarkets(jsonData)
+	marketsProcessed, err := markets.ProcessMarkets(jsonData)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Error processing markets: %v", err)
 	}
 
-	fmt.Printf("%+v\n", markets)
+	fmt.Printf("Market DB: %+v\n\n", markets.MarketDB)
+
+	for _, market := range marketsProcessed {
+		fmt.Printf("%+v\n\n", market)
+	}
 }
