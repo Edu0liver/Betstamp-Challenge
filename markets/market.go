@@ -41,8 +41,6 @@ type APIResponse struct {
 	Events []Event `json:"events"`
 }
 
-var MarketDB []Market
-
 var marketNameMap = map[string]string{
 	"Money line":    "Moneyline",
 	"Points Spread": "Spread",
@@ -58,10 +56,9 @@ func ProcessMarkets(apiData []byte) ([]Market, error) {
 	var wg sync.WaitGroup
 	var markets []Market
 	var errors []error
-	marketChan := make(chan Market, len(apiResponse.Events))
-	errorChan := make(chan error)
 
-	go processChans(&markets, &errors, marketChan, errorChan)
+	marketChan := make(chan Market, len(apiResponse.Events)*6)
+	errorChan := make(chan error, len(apiResponse.Events)*6)
 
 	for _, event := range apiResponse.Events {
 		wg.Add(1)
@@ -69,8 +66,17 @@ func ProcessMarkets(apiData []byte) ([]Market, error) {
 	}
 
 	wg.Wait()
+
 	close(marketChan)
 	close(errorChan)
+
+	for market := range marketChan {
+		markets = append(markets, market)
+	}
+
+	for err := range errorChan {
+		errors = append(errors, err)
+	}
 
 	if len(errors) > 0 {
 		return markets, fmt.Errorf("encountered errors: %v", errors)
@@ -80,22 +86,7 @@ func ProcessMarkets(apiData []byte) ([]Market, error) {
 }
 
 func findFixture(team1 string, team2 string, eventDate time.Time) string {
-	return fmt.Sprintf("Team 1: %s, Team 2: %s, Event Date: %v\n", team1, team2, eventDate)
-}
-
-func processChans(markets *[]Market, errors *[]error, marketChan chan Market, errorChan chan error) {
-	for {
-		select {
-
-		case market := <-marketChan:
-			*markets = append(*markets, market)
-			MarketDB = append(MarketDB, market)
-
-		case err := <-errorChan:
-			*errors = append(*errors, err)
-
-		}
-	}
+	return fmt.Sprintf("%s_%%_%s_%%_%v", team1, team2, eventDate)
 }
 
 func processEvent(event *Event, marketCh chan<- Market, errorCh chan<- error, wg *sync.WaitGroup) {
@@ -120,14 +111,14 @@ func processEvent(event *Event, marketCh chan<- Market, errorCh chan<- error, wg
 		bet_type, exists := marketNameMap[market.MarketName]
 		if !exists {
 			errorCh <- fmt.Errorf("invalid bet_type: %s", market.MarketName)
-			return
+			continue
 		}
 
 		for _, selection := range market.Selections {
 			number, side_type, err := getMarketType(bet_type, selection)
 			if err != nil {
 				errorCh <- err
-				return
+				continue
 			}
 
 			marketCh <- Market{
@@ -157,7 +148,6 @@ func getMarketType(bet_type string, selection Selection) (float64, string, error
 		}
 
 		spread, err := strconv.ParseFloat(selection.Name[lastSpace+1:], 64)
-
 		if err != nil {
 			return 0, "", fmt.Errorf("invalid spread number: %s", selection.Name)
 		}
@@ -172,7 +162,6 @@ func getMarketType(bet_type string, selection Selection) (float64, string, error
 		}
 
 		total, err := strconv.ParseFloat(selection.Name[lastSpace+1:], 64)
-
 		if err != nil {
 			return 0, "", fmt.Errorf("invalid total number: %s", selection.Name)
 		}
