@@ -47,8 +47,11 @@ var marketNameMap = map[string]string{
 	"Total Points":  "Total",
 }
 
+const WorkerCount = 10
+
 func ProcessMarkets(apiData []byte) ([]Market, error) {
 	var apiResponse APIResponse
+
 	if err := json.Unmarshal(apiData, &apiResponse); err != nil {
 		return nil, errors.New("failed to parse JSON")
 	}
@@ -60,6 +63,7 @@ func ProcessMarkets(apiData []byte) ([]Market, error) {
 
 	marketChan := make(chan Market, len(apiResponse.Events)*6)
 	errorChan := make(chan error, len(apiResponse.Events)*6)
+	eventChan := make(chan Event, len(apiResponse.Events))
 
 	receiversWg.Add(1)
 	go fillListByChannel(marketChan, &markets, &receiversWg)
@@ -67,10 +71,16 @@ func ProcessMarkets(apiData []byte) ([]Market, error) {
 	receiversWg.Add(1)
 	go fillListByChannel(errorChan, &errors, &receiversWg)
 
-	for _, event := range apiResponse.Events {
+	for range WorkerCount {
 		wg.Add(1)
-		go processEvent(&event, marketChan, errorChan, &wg)
+		go worker(eventChan, marketChan, errorChan, &wg)
 	}
+
+	for _, event := range apiResponse.Events {
+		eventChan <- event
+	}
+
+	close(eventChan)
 
 	wg.Wait()
 
@@ -97,9 +107,15 @@ func findFixture(team1 string, team2 string, eventDate time.Time) string {
 	return fmt.Sprintf("%s_%%_%s_%%_%v", team1, team2, eventDate)
 }
 
-func processEvent(event *Event, marketCh chan<- Market, errorCh chan<- error, wg *sync.WaitGroup) {
+func worker(eventChan <-chan Event, marketChan chan<- Market, errorChan chan<- error, wg *sync.WaitGroup) {
 	defer wg.Done()
 
+	for event := range eventChan {
+		processEvent(event, marketChan, errorChan)
+	}
+}
+
+func processEvent(event Event, marketCh chan<- Market, errorCh chan<- error) {
 	team1, team2, found := strings.Cut(event.Name, " @ ")
 	if !found {
 		errorCh <- fmt.Errorf("invalid event name format: %s", event.Name)
@@ -158,35 +174,22 @@ func getMarketType(bet_type string, selection Selection) (float64, string, error
 	case "Moneyline":
 		return 0, selection.Name, nil
 
-	case "Spread":
+	case "Spread", "Total":
 		lastSpace := strings.LastIndex(selection.Name, " ")
 
 		if lastSpace == -1 {
-			return 0, "", fmt.Errorf("invalid spread format: %s", selection.Name)
+			return 0, "", fmt.Errorf("invalid format: %s", selection.Name)
 		}
 
-		spread, err := strconv.ParseFloat(selection.Name[lastSpace+1:], 64)
+		value, err := strconv.ParseFloat(selection.Name[lastSpace+1:], 64)
 		if err != nil {
-			return 0, "", fmt.Errorf("invalid spread number: %s", selection.Name)
+			return 0, "", fmt.Errorf("invalid number: %s", selection.Name)
 		}
 
-		return spread, selection.Name[:lastSpace], nil
+		return value, strings.TrimSpace(strings.ToLower(selection.Name[:lastSpace])), nil
 
-	case "Total":
-		lastSpace := strings.LastIndex(selection.Name, " ")
-
-		if lastSpace == -1 {
-			return 0, "", fmt.Errorf("invalid total points format: %s", selection.Name)
-		}
-
-		total, err := strconv.ParseFloat(selection.Name[lastSpace+1:], 64)
-		if err != nil {
-			return 0, "", fmt.Errorf("invalid total number: %s", selection.Name)
-		}
-
-		return total, strings.ToLower(selection.Name[:lastSpace]), nil
+	default:
+		return 0, "", nil
 
 	}
-
-	return 0, "", nil
 }
