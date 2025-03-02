@@ -16,13 +16,13 @@ func main() {
 
 	marketsProcessed, err := markets.ProcessMarkets(jsonData)
 
-	fmt.Printf("\nNumber of markets processed: %+v\n\n", len(marketsProcessed))
+	fmt.Printf("\nNumber of markets processed: %+v\n", len(marketsProcessed))
 
 	if err != nil {
-		fmt.Printf("Error processing markets: %v", err)
+		fmt.Printf("\nError processing markets: %v\n", err)
 	}
 
-	for _, market := range marketsProcessed {
-		fmt.Printf("%+v\n\n", market)
-	}
+	// for _, market := range marketsProcessed {
+	// 	fmt.Printf("\n%+v\n", market)
+	// }
 }

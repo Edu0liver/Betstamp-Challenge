@@ -19,26 +19,26 @@ type Market struct {
 	Side_type  string  `json:"side_type"`
 }
 
-type Selection struct {
+type selection struct {
 	Name string  `json:"name"`
 	Odds float64 `json:"odds"`
 }
 
-type MarketEvent struct {
+type marketEvent struct {
 	MarketName string      `json:"marketName"`
-	Selections []Selection `json:"selections"`
+	Selections []selection `json:"selections"`
 }
 
-type Event struct {
+type event struct {
 	ID      int           `json:"id"`
 	Name    string        `json:"name"`
 	Start   string        `json:"start"`
 	State   string        `json:"state"`
-	Markets []MarketEvent `json:"markets"`
+	Markets []marketEvent `json:"markets"`
 }
 
-type APIResponse struct {
-	Events []Event `json:"events"`
+type apiResponse struct {
+	Events []event `json:"events"`
 }
 
 var marketNameMap = map[string]string{
@@ -47,10 +47,10 @@ var marketNameMap = map[string]string{
 	"Total Points":  "Total",
 }
 
-const WorkerCount = 10
+const WorkerCount = 5
 
 func ProcessMarkets(apiData []byte) ([]Market, error) {
-	var apiResponse APIResponse
+	var apiResponse apiResponse
 
 	if err := json.Unmarshal(apiData, &apiResponse); err != nil {
 		return nil, errors.New("failed to parse JSON")
@@ -63,7 +63,7 @@ func ProcessMarkets(apiData []byte) ([]Market, error) {
 
 	marketChan := make(chan Market, len(apiResponse.Events)*6)
 	errorChan := make(chan error, len(apiResponse.Events)*6)
-	eventChan := make(chan Event, len(apiResponse.Events))
+	eventChan := make(chan event, len(apiResponse.Events))
 
 	receiversWg.Add(1)
 	go fillListByChannel(marketChan, &markets, &receiversWg)
@@ -103,11 +103,7 @@ func fillListByChannel[T any](ch chan T, list *[]T, wg *sync.WaitGroup) {
 	}
 }
 
-func findFixture(team1 string, team2 string, eventDate time.Time) string {
-	return fmt.Sprintf("%s_%%_%s_%%_%v", team1, team2, eventDate)
-}
-
-func worker(id int, eventChan <-chan Event, marketChan chan<- Market, errorChan chan<- error, wg *sync.WaitGroup) {
+func worker(id int, eventChan <-chan event, marketChan chan<- Market, errorChan chan<- error, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	fmt.Printf("Worker id setted: %d\n", id)
@@ -117,7 +113,7 @@ func worker(id int, eventChan <-chan Event, marketChan chan<- Market, errorChan 
 	}
 }
 
-func processEvent(event Event, marketCh chan<- Market, errorCh chan<- error) {
+func processEvent(event event, marketCh chan<- Market, errorCh chan<- error) {
 	team1, team2, found := strings.Cut(event.Name, " @ ")
 	if !found {
 		errorCh <- fmt.Errorf("invalid event name format: %s", event.Name)
@@ -143,7 +139,11 @@ func processEvent(event Event, marketCh chan<- Market, errorCh chan<- error) {
 	marketWg.Wait()
 }
 
-func processMarket(market MarketEvent, fixtureID string, isLive bool, marketCh chan<- Market, errorCh chan<- error, wg *sync.WaitGroup) {
+func findFixture(team1 string, team2 string, eventDate time.Time) string {
+	return fmt.Sprintf("%s_%%_%s_%%_%v", team1, team2, eventDate)
+}
+
+func processMarket(market marketEvent, fixtureID string, isLive bool, marketCh chan<- Market, errorCh chan<- error, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	bet_type, exists := marketNameMap[market.MarketName]
@@ -170,7 +170,7 @@ func processMarket(market MarketEvent, fixtureID string, isLive bool, marketCh c
 	}
 }
 
-func getMarketType(bet_type string, selection Selection) (float64, string, error) {
+func getMarketType(bet_type string, selection selection) (float64, string, error) {
 	switch bet_type {
 
 	case "Moneyline":
