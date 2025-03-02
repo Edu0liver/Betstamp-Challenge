@@ -176,7 +176,6 @@ func getMarketType(bet_type string, selection Selection) (float64, string, error
 
 	case "Spread", "Total":
 		lastSpace := strings.LastIndex(selection.Name, " ")
-
 		if lastSpace == -1 {
 			return 0, "", fmt.Errorf("invalid format: %s", selection.Name)
 		}
@@ -186,7 +185,7 @@ func getMarketType(bet_type string, selection Selection) (float64, string, error
 			return 0, "", fmt.Errorf("invalid number: %s", selection.Name)
 		}
 
-		return value, strings.TrimSpace(strings.ToLower(selection.Name[:lastSpace])), nil
+		return value, strings.TrimSpace(selection.Name[:lastSpace]), nil
 
 	default:
 		return 0, "", nil
