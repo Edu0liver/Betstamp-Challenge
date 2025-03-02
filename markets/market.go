@@ -54,11 +54,18 @@ func ProcessMarkets(apiData []byte) ([]Market, error) {
 	}
 
 	var wg sync.WaitGroup
+	var receiversWg sync.WaitGroup
 	var markets []Market
 	var errors []error
 
 	marketChan := make(chan Market, len(apiResponse.Events)*6)
 	errorChan := make(chan error, len(apiResponse.Events)*6)
+
+	receiversWg.Add(1)
+	go fillListByChannel(marketChan, &markets, &receiversWg)
+
+	receiversWg.Add(1)
+	go fillListByChannel(errorChan, &errors, &receiversWg)
 
 	for _, event := range apiResponse.Events {
 		wg.Add(1)
@@ -70,19 +77,20 @@ func ProcessMarkets(apiData []byte) ([]Market, error) {
 	close(marketChan)
 	close(errorChan)
 
-	for market := range marketChan {
-		markets = append(markets, market)
-	}
-
-	for err := range errorChan {
-		errors = append(errors, err)
-	}
+	receiversWg.Wait()
 
 	if len(errors) > 0 {
 		return markets, fmt.Errorf("encountered errors: %v", errors)
 	}
 
 	return markets, nil
+}
+
+func fillListByChannel[T any](ch chan T, list *[]T, wg *sync.WaitGroup) {
+	defer wg.Done()
+	for err := range ch {
+		*list = append(*list, err)
+	}
 }
 
 func findFixture(team1 string, team2 string, eventDate time.Time) string {
@@ -107,31 +115,41 @@ func processEvent(event *Event, marketCh chan<- Market, errorCh chan<- error, wg
 	fixtureID := findFixture(team1, team2, eventDate)
 	isLive := event.State == "LIVE"
 
+	var marketWg sync.WaitGroup
+
 	for _, market := range event.Markets {
-		bet_type, exists := marketNameMap[market.MarketName]
-		if !exists {
-			errorCh <- fmt.Errorf("invalid bet_type: %s", market.MarketName)
+		marketWg.Add(1)
+		go processMarket(market, fixtureID, isLive, marketCh, errorCh, &marketWg)
+	}
+
+	marketWg.Wait()
+}
+
+func processMarket(market MarketEvent, fixtureID string, isLive bool, marketCh chan<- Market, errorCh chan<- error, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	bet_type, exists := marketNameMap[market.MarketName]
+	if !exists {
+		errorCh <- fmt.Errorf("invalid bet_type: %s", market.MarketName)
+		return
+	}
+
+	for _, selection := range market.Selections {
+		number, side_type, err := getMarketType(bet_type, selection)
+		if err != nil {
+			errorCh <- err
 			continue
 		}
 
-		for _, selection := range market.Selections {
-			number, side_type, err := getMarketType(bet_type, selection)
-			if err != nil {
-				errorCh <- err
-				continue
-			}
-
-			marketCh <- Market{
-				Fixture_id: fixtureID,
-				Bet_type:   bet_type,
-				Is_live:    isLive,
-				Odds:       selection.Odds,
-				Number:     number,
-				Side_type:  side_type,
-			}
+		marketCh <- Market{
+			Fixture_id: fixtureID,
+			Bet_type:   bet_type,
+			Is_live:    isLive,
+			Odds:       selection.Odds,
+			Number:     number,
+			Side_type:  side_type,
 		}
 	}
-
 }
 
 func getMarketType(bet_type string, selection Selection) (float64, string, error) {
