@@ -22,7 +22,7 @@ func main() {
 		fmt.Printf("\nError processing markets: %v\n", err)
 	}
 
-	// for _, market := range marketsProcessed {
-	// 	fmt.Printf("\n%+v\n", market)
-	// }
+	for _, market := range marketsProcessed {
+		fmt.Printf("\n%+v\n", market)
+	}
 }
