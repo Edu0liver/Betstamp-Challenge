@@ -71,9 +71,9 @@ func ProcessMarkets(apiData []byte) ([]Market, error) {
 	receiversWg.Add(1)
 	go fillListByChannel(errorChan, &errors, &receiversWg)
 
-	for range WorkerCount {
+	for w := 1; w <= WorkerCount; w++ {
 		wg.Add(1)
-		go worker(eventChan, marketChan, errorChan, &wg)
+		go worker(w, eventChan, marketChan, errorChan, &wg)
 	}
 
 	for _, event := range apiResponse.Events {
@@ -107,8 +107,10 @@ func findFixture(team1 string, team2 string, eventDate time.Time) string {
 	return fmt.Sprintf("%s_%%_%s_%%_%v", team1, team2, eventDate)
 }
 
-func worker(eventChan <-chan Event, marketChan chan<- Market, errorChan chan<- error, wg *sync.WaitGroup) {
+func worker(id int, eventChan <-chan Event, marketChan chan<- Market, errorChan chan<- error, wg *sync.WaitGroup) {
 	defer wg.Done()
+
+	fmt.Printf("Worker id setted: %d\n", id)
 
 	for event := range eventChan {
 		processEvent(event, marketChan, errorChan)
