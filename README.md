@@ -2,7 +2,7 @@
 
 Simply running the following command on the root project:
 
-```bash
+```go
 go run .
 ```
 
@@ -10,7 +10,7 @@ It will run the function that consumes the example json file, the function assus
 
 Output example:
 
-```bash
+```text
 Worker id setted: 5
 Worker id setted: 4
 Worker id setted: 2
